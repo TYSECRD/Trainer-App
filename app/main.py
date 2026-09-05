@@ -1,7 +1,11 @@
 from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
-
+from app.security import (
+    create_access_token,
+    hash_password,
+    verify_password,
+)
 from app import models
 from app.database import Base, engine, get_database
 
@@ -10,6 +14,13 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Trainer App API")
 
+class TrainerCreate(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=8)
+
+class TrainerLogin(BaseModel):
+    email: EmailStr
+    password: str
 
 class ClientCreate(BaseModel):
     first_name: str
@@ -257,3 +268,70 @@ def get_diet_plans(
         .order_by(models.DietPlan.created_at)
         .all()
     )
+
+@app.post("/trainers/register")
+def register_trainer(
+    trainer: TrainerCreate,
+    database: Session = Depends(get_database),
+):
+    existing_trainer = (
+        database.query(models.Trainer)
+        .filter(models.Trainer.email == trainer.email)
+        .first()
+    )
+
+    if existing_trainer:
+        raise HTTPException(
+            status_code=409,
+            detail="Trainer with this email already exists",
+        )
+
+    new_trainer = models.Trainer(
+        email=trainer.email,
+        hashed_password=hash_password(trainer.password),
+    )
+
+    database.add(new_trainer)
+    database.commit()
+    database.refresh(new_trainer)
+
+    return {
+        "id": new_trainer.id,
+        "email": new_trainer.email,
+        "is_active": new_trainer.is_active,
+    }
+
+@app.post("/trainers/login")
+def login_trainer(
+    trainer: TrainerLogin,
+    database: Session = Depends(get_database),
+):
+    existing_trainer = (
+        database.query(models.Trainer)
+        .filter(models.Trainer.email == trainer.email)
+        .first()
+    )
+
+    if not existing_trainer:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid email or password",
+        )
+
+    if not verify_password(
+        trainer.password,
+        existing_trainer.hashed_password,
+    ):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid email or password",
+        )
+
+    access_token = create_access_token(
+        existing_trainer.email
+    )
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+    }

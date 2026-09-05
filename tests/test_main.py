@@ -15,6 +15,7 @@ def clear_database():
 
     database.query(models.Workout).delete()
     database.query(models.CheckIn).delete()
+    database.query(models.Trainer).delete()
     database.query(models.Client).delete()
     database.query(models.DietPlan).delete()
     database.commit()
@@ -26,6 +27,7 @@ def clear_database():
 
     database.query(models.Workout).delete()
     database.query(models.CheckIn).delete()
+    database.query(models.Trainer).delete()
     database.query(models.Client).delete()
     database.query(models.DietPlan).delete()
     database.commit()
@@ -312,4 +314,123 @@ def test_reject_diet_plan_for_missing_client():
     assert response.status_code == 404
     assert response.json() == {
         "detail": "Client not found"
+    }
+
+def test_register_trainer():
+    response = client.post(
+        "/trainers/register",
+        json={
+            "email": "trainer@test.com",
+            "password": "StrongPass123",
+        },
+    )
+
+    assert response.status_code == 200
+
+    trainer = response.json()
+
+    assert trainer["email"] == "trainer@test.com"
+    assert trainer["is_active"] is True
+    assert "id" in trainer
+    assert "hashed_password" not in trainer
+    assert "password" not in trainer
+
+
+def test_reject_duplicate_trainer_email():
+    trainer_data = {
+        "email": "duplicate.trainer@test.com",
+        "password": "StrongPass123",
+    }
+
+    first_response = client.post(
+        "/trainers/register",
+        json=trainer_data,
+    )
+
+    assert first_response.status_code == 200
+
+    second_response = client.post(
+        "/trainers/register",
+        json=trainer_data,
+    )
+
+    assert second_response.status_code == 409
+    assert second_response.json() == {
+        "detail": "Trainer with this email already exists"
+    }
+
+
+def test_reject_short_trainer_password():
+    response = client.post(
+        "/trainers/register",
+        json={
+            "email": "short@test.com",
+            "password": "123",
+        },
+    )
+
+    assert response.status_code == 422
+
+def test_trainer_login_returns_token():
+    register_response = client.post(
+        "/trainers/register",
+        json={
+            "email": "login@test.com",
+            "password": "StrongPass123",
+        },
+    )
+
+    assert register_response.status_code == 200
+
+    login_response = client.post(
+        "/trainers/login",
+        json={
+            "email": "login@test.com",
+            "password": "StrongPass123",
+        },
+    )
+
+    assert login_response.status_code == 200
+
+    login_data = login_response.json()
+
+    assert "access_token" in login_data
+    assert login_data["token_type"] == "bearer"
+
+
+def test_reject_login_with_wrong_password():
+    client.post(
+        "/trainers/register",
+        json={
+            "email": "wrongpass@test.com",
+            "password": "StrongPass123",
+        },
+    )
+
+    response = client.post(
+        "/trainers/login",
+        json={
+            "email": "wrongpass@test.com",
+            "password": "WrongPass456",
+        },
+    )
+
+    assert response.status_code == 401
+    assert response.json() == {
+        "detail": "Invalid email or password"
+    }
+
+
+def test_reject_login_with_unknown_email():
+    response = client.post(
+        "/trainers/login",
+        json={
+            "email": "nobody@test.com",
+            "password": "StrongPass123",
+        },
+    )
+
+    assert response.status_code == 401
+    assert response.json() == {
+        "detail": "Invalid email or password"
     }
