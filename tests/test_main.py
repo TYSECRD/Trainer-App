@@ -10,9 +10,10 @@ client = TestClient(app)
 
 
 @pytest.fixture(autouse=True)
-def clear_clients():
+def clear_database():
     database = SessionLocal()
 
+    database.query(models.CheckIn).delete()
     database.query(models.Client).delete()
     database.commit()
     database.close()
@@ -21,6 +22,7 @@ def clear_clients():
 
     database = SessionLocal()
 
+    database.query(models.CheckIn).delete()
     database.query(models.Client).delete()
     database.commit()
     database.close()
@@ -83,3 +85,98 @@ def test_create_and_get_client():
         saved_client["email"] == "alex@test.com"
         for saved_client in clients
     )
+
+
+def test_create_and_get_check_in():
+    client_response = client.post(
+        "/clients",
+        json={
+            "first_name": "Jordan",
+            "last_name": "Smith",
+            "email": "jordan@test.com",
+            "goal": "Lose fat",
+        },
+    )
+
+    assert client_response.status_code == 200
+
+    client_id = client_response.json()["id"]
+
+    check_in_response = client.post(
+        f"/clients/{client_id}/check-ins",
+        json={
+            "weight": 225.5,
+            "energy": 8,
+            "diet_adherence": 9,
+            "workout_adherence": 7,
+            "notes": "Good week overall",
+        },
+    )
+
+    assert check_in_response.status_code == 200
+
+    check_in = check_in_response.json()
+
+    assert check_in["client_id"] == client_id
+    assert check_in["weight"] == 225.5
+    assert check_in["energy"] == 8
+    assert check_in["diet_adherence"] == 9
+    assert check_in["workout_adherence"] == 7
+    assert check_in["notes"] == "Good week overall"
+    assert "created_at" in check_in
+
+    get_response = client.get(
+        f"/clients/{client_id}/check-ins"
+    )
+
+    assert get_response.status_code == 200
+
+    check_ins = get_response.json()
+
+    assert len(check_ins) == 1
+    assert check_ins[0]["weight"] == 225.5
+
+
+def test_reject_check_in_for_missing_client():
+    response = client.post(
+        "/clients/999/check-ins",
+        json={
+            "weight": 200,
+            "energy": 7,
+            "diet_adherence": 8,
+            "workout_adherence": 8,
+            "notes": "Should not save",
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": "Client not found"
+    }
+
+
+def test_reject_invalid_check_in_scores():
+    client_response = client.post(
+        "/clients",
+        json={
+            "first_name": "Taylor",
+            "last_name": "Jones",
+            "email": "taylor@test.com",
+            "goal": "Build muscle",
+        },
+    )
+
+    client_id = client_response.json()["id"]
+
+    response = client.post(
+        f"/clients/{client_id}/check-ins",
+        json={
+            "weight": 210,
+            "energy": 15,
+            "diet_adherence": 0,
+            "workout_adherence": 12,
+            "notes": "Invalid scores",
+        },
+    )
+
+    assert response.status_code == 422
