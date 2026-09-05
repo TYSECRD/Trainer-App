@@ -13,8 +13,10 @@ client = TestClient(app)
 def clear_database():
     database = SessionLocal()
 
+    database.query(models.Workout).delete()
     database.query(models.CheckIn).delete()
     database.query(models.Client).delete()
+    database.query(models.DietPlan).delete()
     database.commit()
     database.close()
 
@@ -22,8 +24,10 @@ def clear_database():
 
     database = SessionLocal()
 
+    database.query(models.Workout).delete()
     database.query(models.CheckIn).delete()
     database.query(models.Client).delete()
+    database.query(models.DietPlan).delete()
     database.commit()
     database.close()
 
@@ -180,3 +184,132 @@ def test_reject_invalid_check_in_scores():
     )
 
     assert response.status_code == 422
+
+def test_create_and_get_workout():
+    client_response = client.post(
+        "/clients",
+        json={
+            "first_name": "Chris",
+            "last_name": "Walker",
+            "email": "chris@test.com",
+            "goal": "Build muscle",
+        },
+    )
+
+    client_id = client_response.json()["id"]
+
+    workout_response = client.post(
+        f"/clients/{client_id}/workouts",
+        json={
+            "name": "Push Day",
+            "exercise": "Bench Press",
+            "sets": 4,
+            "reps": 8,
+            "notes": "Leave one rep in reserve",
+        },
+    )
+
+    assert workout_response.status_code == 200
+
+    workout = workout_response.json()
+
+    assert workout["client_id"] == client_id
+    assert workout["name"] == "Push Day"
+    assert workout["exercise"] == "Bench Press"
+    assert workout["sets"] == 4
+    assert workout["reps"] == 8
+
+    get_response = client.get(
+        f"/clients/{client_id}/workouts"
+    )
+
+    assert get_response.status_code == 200
+
+    workouts = get_response.json()
+
+    assert len(workouts) == 1
+    assert workouts[0]["exercise"] == "Bench Press"
+
+
+def test_reject_workout_for_missing_client():
+    response = client.post(
+        "/clients/999/workouts",
+        json={
+            "name": "Pull Day",
+            "exercise": "Barbell Row",
+            "sets": 4,
+            "reps": 10,
+            "notes": "Controlled reps",
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": "Client not found"
+    }
+
+def test_create_and_get_diet_plan():
+    client_response = client.post(
+        "/clients",
+        json={
+            "first_name": "Morgan",
+            "last_name": "Lee",
+            "email": "morgan@test.com",
+            "goal": "Lose fat",
+        },
+    )
+
+    client_id = client_response.json()["id"]
+
+    diet_response = client.post(
+        f"/clients/{client_id}/diet-plans",
+        json={
+            "name": "Cut Phase",
+            "calories": 2200,
+            "protein": 200,
+            "carbs": 180,
+            "fat": 65,
+            "notes": "Keep meals simple and consistent",
+        },
+    )
+
+    assert diet_response.status_code == 200
+
+    diet_plan = diet_response.json()
+
+    assert diet_plan["client_id"] == client_id
+    assert diet_plan["name"] == "Cut Phase"
+    assert diet_plan["calories"] == 2200
+    assert diet_plan["protein"] == 200
+    assert diet_plan["carbs"] == 180
+    assert diet_plan["fat"] == 65
+
+    get_response = client.get(
+        f"/clients/{client_id}/diet-plans"
+    )
+
+    assert get_response.status_code == 200
+
+    diet_plans = get_response.json()
+
+    assert len(diet_plans) == 1
+    assert diet_plans[0]["name"] == "Cut Phase"
+
+
+def test_reject_diet_plan_for_missing_client():
+    response = client.post(
+        "/clients/999/diet-plans",
+        json={
+            "name": "Maintenance",
+            "calories": 2500,
+            "protein": 180,
+            "carbs": 250,
+            "fat": 70,
+            "notes": "Should not save",
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": "Client not found"
+    }

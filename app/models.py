@@ -38,3 +38,46 @@ class CheckIn(Base):
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
     )
+
+class Workout(Base):
+    __tablename__ = "workouts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    client_id: Mapped[int] = mapped_column(
+        ForeignKey("clients.id"),
+        nullable=False,
+    )
+
+    name: Mapped[str] = mapped_column(String(100))
+    exercise: Mapped[str] = mapped_column(String(100))
+    sets: Mapped[int] = mapped_column(Integer)
+    reps: Mapped[int] = mapped_column(Integer)
+    notes: Mapped[str] = mapped_column(String(1000))
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+class DietPlan(Base):
+    __tablename__ = "diet_plans"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+
+    client_id: Mapped[int] = mapped_column(
+        ForeignKey("clients.id"),
+        nullable=False,
+    )
+
+    name: Mapped[str] = mapped_column(String(100))
+    calories: Mapped[int] = mapped_column(Integer)
+    protein: Mapped[int] = mapped_column(Integer)
+    carbs: Mapped[int] = mapped_column(Integer)
+    fat: Mapped[int] = mapped_column(Integer)
+    notes: Mapped[str] = mapped_column(String(1000))
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+    )
