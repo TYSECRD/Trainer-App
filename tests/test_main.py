@@ -9,15 +9,43 @@ from app.main import app
 client = TestClient(app)
 
 
+def get_auth_headers():
+    trainer_data = {
+        "email": "auth@test.com",
+        "password": "StrongPass123",
+    }
+
+    register_response = client.post(
+        "/trainers/register",
+        json=trainer_data,
+    )
+
+    assert register_response.status_code == 200
+
+    login_response = client.post(
+        "/trainers/login",
+        json=trainer_data,
+    )
+
+    assert login_response.status_code == 200
+
+    access_token = login_response.json()["access_token"]
+
+    return {
+        "Authorization": f"Bearer {access_token}"
+    }
+
+
 @pytest.fixture(autouse=True)
 def clear_database():
     database = SessionLocal()
 
+    database.query(models.DietPlan).delete()
     database.query(models.Workout).delete()
     database.query(models.CheckIn).delete()
-    database.query(models.Trainer).delete()
     database.query(models.Client).delete()
-    database.query(models.DietPlan).delete()
+    database.query(models.Trainer).delete()
+
     database.commit()
     database.close()
 
@@ -25,11 +53,12 @@ def clear_database():
 
     database = SessionLocal()
 
+    database.query(models.DietPlan).delete()
     database.query(models.Workout).delete()
     database.query(models.CheckIn).delete()
-    database.query(models.Trainer).delete()
     database.query(models.Client).delete()
-    database.query(models.DietPlan).delete()
+    database.query(models.Trainer).delete()
+
     database.commit()
     database.close()
 
@@ -42,6 +71,8 @@ def test_health():
 
 
 def test_reject_duplicate_client_email():
+    auth_headers = get_auth_headers()
+
     client_data = {
         "first_name": "Tyler",
         "last_name": "Test",
@@ -49,11 +80,19 @@ def test_reject_duplicate_client_email():
         "goal": "Build muscle",
     }
 
-    first_response = client.post("/clients", json=client_data)
+    first_response = client.post(
+        "/clients",
+        json=client_data,
+        headers=auth_headers,
+    )
 
     assert first_response.status_code == 200
 
-    second_response = client.post("/clients", json=client_data)
+    second_response = client.post(
+        "/clients",
+        json=client_data,
+        headers=auth_headers,
+    )
 
     assert second_response.status_code == 409
     assert second_response.json() == {
@@ -62,6 +101,8 @@ def test_reject_duplicate_client_email():
 
 
 def test_create_and_get_client():
+    auth_headers = get_auth_headers()
+
     client_data = {
         "first_name": "Alex",
         "last_name": "Rivera",
@@ -69,7 +110,11 @@ def test_create_and_get_client():
         "goal": "Lose 20 pounds",
     }
 
-    create_response = client.post("/clients", json=client_data)
+    create_response = client.post(
+        "/clients",
+        json=client_data,
+        headers=auth_headers,
+    )
 
     assert create_response.status_code == 200
 
@@ -81,7 +126,10 @@ def test_create_and_get_client():
     assert created_client["goal"] == "Lose 20 pounds"
     assert "id" in created_client
 
-    get_response = client.get("/clients")
+    get_response = client.get(
+        "/clients",
+        headers=auth_headers,
+    )
 
     assert get_response.status_code == 200
 
@@ -94,6 +142,8 @@ def test_create_and_get_client():
 
 
 def test_create_and_get_check_in():
+    auth_headers = get_auth_headers()
+
     client_response = client.post(
         "/clients",
         json={
@@ -102,6 +152,7 @@ def test_create_and_get_check_in():
             "email": "jordan@test.com",
             "goal": "Lose fat",
         },
+        headers=auth_headers,
     )
 
     assert client_response.status_code == 200
@@ -117,6 +168,7 @@ def test_create_and_get_check_in():
             "workout_adherence": 7,
             "notes": "Good week overall",
         },
+        headers=auth_headers,
     )
 
     assert check_in_response.status_code == 200
@@ -132,7 +184,8 @@ def test_create_and_get_check_in():
     assert "created_at" in check_in
 
     get_response = client.get(
-        f"/clients/{client_id}/check-ins"
+        f"/clients/{client_id}/check-ins",
+        headers=auth_headers,
     )
 
     assert get_response.status_code == 200
@@ -144,6 +197,8 @@ def test_create_and_get_check_in():
 
 
 def test_reject_check_in_for_missing_client():
+    auth_headers = get_auth_headers()
+
     response = client.post(
         "/clients/999/check-ins",
         json={
@@ -153,6 +208,7 @@ def test_reject_check_in_for_missing_client():
             "workout_adherence": 8,
             "notes": "Should not save",
         },
+        headers=auth_headers,
     )
 
     assert response.status_code == 404
@@ -162,6 +218,8 @@ def test_reject_check_in_for_missing_client():
 
 
 def test_reject_invalid_check_in_scores():
+    auth_headers = get_auth_headers()
+
     client_response = client.post(
         "/clients",
         json={
@@ -170,7 +228,10 @@ def test_reject_invalid_check_in_scores():
             "email": "taylor@test.com",
             "goal": "Build muscle",
         },
+        headers=auth_headers,
     )
+
+    assert client_response.status_code == 200
 
     client_id = client_response.json()["id"]
 
@@ -183,11 +244,15 @@ def test_reject_invalid_check_in_scores():
             "workout_adherence": 12,
             "notes": "Invalid scores",
         },
+        headers=auth_headers,
     )
 
     assert response.status_code == 422
 
+
 def test_create_and_get_workout():
+    auth_headers = get_auth_headers()
+
     client_response = client.post(
         "/clients",
         json={
@@ -196,7 +261,10 @@ def test_create_and_get_workout():
             "email": "chris@test.com",
             "goal": "Build muscle",
         },
+        headers=auth_headers,
     )
+
+    assert client_response.status_code == 200
 
     client_id = client_response.json()["id"]
 
@@ -209,6 +277,7 @@ def test_create_and_get_workout():
             "reps": 8,
             "notes": "Leave one rep in reserve",
         },
+        headers=auth_headers,
     )
 
     assert workout_response.status_code == 200
@@ -222,7 +291,8 @@ def test_create_and_get_workout():
     assert workout["reps"] == 8
 
     get_response = client.get(
-        f"/clients/{client_id}/workouts"
+        f"/clients/{client_id}/workouts",
+        headers=auth_headers,
     )
 
     assert get_response.status_code == 200
@@ -234,6 +304,8 @@ def test_create_and_get_workout():
 
 
 def test_reject_workout_for_missing_client():
+    auth_headers = get_auth_headers()
+
     response = client.post(
         "/clients/999/workouts",
         json={
@@ -243,6 +315,7 @@ def test_reject_workout_for_missing_client():
             "reps": 10,
             "notes": "Controlled reps",
         },
+        headers=auth_headers,
     )
 
     assert response.status_code == 404
@@ -250,7 +323,10 @@ def test_reject_workout_for_missing_client():
         "detail": "Client not found"
     }
 
+
 def test_create_and_get_diet_plan():
+    auth_headers = get_auth_headers()
+
     client_response = client.post(
         "/clients",
         json={
@@ -259,7 +335,10 @@ def test_create_and_get_diet_plan():
             "email": "morgan@test.com",
             "goal": "Lose fat",
         },
+        headers=auth_headers,
     )
+
+    assert client_response.status_code == 200
 
     client_id = client_response.json()["id"]
 
@@ -273,6 +352,7 @@ def test_create_and_get_diet_plan():
             "fat": 65,
             "notes": "Keep meals simple and consistent",
         },
+        headers=auth_headers,
     )
 
     assert diet_response.status_code == 200
@@ -287,7 +367,8 @@ def test_create_and_get_diet_plan():
     assert diet_plan["fat"] == 65
 
     get_response = client.get(
-        f"/clients/{client_id}/diet-plans"
+        f"/clients/{client_id}/diet-plans",
+        headers=auth_headers,
     )
 
     assert get_response.status_code == 200
@@ -299,6 +380,8 @@ def test_create_and_get_diet_plan():
 
 
 def test_reject_diet_plan_for_missing_client():
+    auth_headers = get_auth_headers()
+
     response = client.post(
         "/clients/999/diet-plans",
         json={
@@ -309,12 +392,14 @@ def test_reject_diet_plan_for_missing_client():
             "fat": 70,
             "notes": "Should not save",
         },
+        headers=auth_headers,
     )
 
     assert response.status_code == 404
     assert response.json() == {
         "detail": "Client not found"
     }
+
 
 def test_register_trainer():
     response = client.post(
@@ -370,6 +455,7 @@ def test_reject_short_trainer_password():
     )
 
     assert response.status_code == 422
+
 
 def test_trainer_login_returns_token():
     register_response = client.post(
@@ -433,4 +519,13 @@ def test_reject_login_with_unknown_email():
     assert response.status_code == 401
     assert response.json() == {
         "detail": "Invalid email or password"
+    }
+
+
+def test_reject_clients_without_auth():
+    response = client.get("/clients")
+
+    assert response.status_code == 401
+    assert response.json() == {
+        "detail": "Authentication required"
     }

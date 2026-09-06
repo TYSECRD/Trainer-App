@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 import os
 
 import jwt
+from jwt.exceptions import InvalidTokenError
 from pwdlib import PasswordHash
 
 
@@ -47,3 +48,24 @@ def create_access_token(email: str) -> str:
         secret_key,
         algorithm=ALGORITHM,
     )
+
+
+def decode_access_token(token: str) -> str | None:
+    secret_key = os.getenv("TRAINER_APP_SECRET_KEY")
+
+    if not secret_key:
+        raise RuntimeError(
+            "TRAINER_APP_SECRET_KEY environment variable is not set"
+        )
+
+    try:
+        payload = jwt.decode(
+            token,
+            secret_key,
+            algorithms=[ALGORITHM],
+        )
+
+        return payload.get("sub")
+
+    except InvalidTokenError:
+        return None
