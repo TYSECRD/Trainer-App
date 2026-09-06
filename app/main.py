@@ -1,8 +1,8 @@
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.orm import Session
-
+from app.steeldoor_client import send_security_event
 from app import models
 from app.database import Base, engine, get_database
 from app.security import (
@@ -25,6 +25,13 @@ class ClientCreate(BaseModel):
     last_name: str
     email: EmailStr
     goal: str
+
+
+class ClientUpdate(BaseModel):
+    first_name: str | None = None
+    last_name: str | None = None
+    email: EmailStr | None = None
+    goal: str | None = None
 
 
 class CheckInCreate(BaseModel):
@@ -138,8 +145,15 @@ def register_trainer(
 @app.post("/trainers/login")
 def login_trainer(
     trainer: TrainerLogin,
+    request: Request,
     database: Session = Depends(get_database),
 ):
+    source_ip = (
+        request.client.host
+        if request.client
+        else "unknown"
+    )
+
     existing_trainer = (
         database.query(models.Trainer)
         .filter(models.Trainer.email == trainer.email)
@@ -147,6 +161,13 @@ def login_trainer(
     )
 
     if not existing_trainer:
+        send_security_event(
+            source_ip=source_ip,
+            event_type="failed_login",
+            severity="medium",
+            description="Failed trainer login attempt",
+        )
+
         raise HTTPException(
             status_code=401,
             detail="Invalid email or password",
@@ -156,6 +177,13 @@ def login_trainer(
         trainer.password,
         existing_trainer.hashed_password,
     ):
+        send_security_event(
+            source_ip=source_ip,
+            event_type="failed_login",
+            severity="medium",
+            description="Failed trainer login attempt",
+        )
+
         raise HTTPException(
             status_code=401,
             detail="Invalid email or password",
@@ -213,6 +241,96 @@ def get_clients(
     ),
 ):
     return database.query(models.Client).all()
+
+
+@app.patch("/clients/{client_id}")
+def update_client(
+    client_id: int,
+    client_update: ClientUpdate,
+    database: Session = Depends(get_database),
+    _current_trainer: models.Trainer = Depends(
+        get_current_trainer
+    ),
+):
+    existing_client = (
+        database.query(models.Client)
+        .filter(models.Client.id == client_id)
+        .first()
+    )
+
+    if not existing_client:
+        raise HTTPException(
+            status_code=404,
+            detail="Client not found",
+        )
+
+    if client_update.email is not None:
+        duplicate_client = (
+            database.query(models.Client)
+            .filter(
+                models.Client.email == client_update.email,
+                models.Client.id != client_id,
+            )
+            .first()
+        )
+
+        if duplicate_client:
+            raise HTTPException(
+                status_code=409,
+                detail="Client with this email already exists",
+            )
+
+    update_data = client_update.model_dump(
+        exclude_unset=True
+    )
+
+    for field, value in update_data.items():
+        setattr(existing_client, field, value)
+
+    database.commit()
+    database.refresh(existing_client)
+
+    return existing_client
+
+
+@app.delete("/clients/{client_id}")
+def delete_client(
+    client_id: int,
+    database: Session = Depends(get_database),
+    _current_trainer: models.Trainer = Depends(
+        get_current_trainer
+    ),
+):
+    existing_client = (
+        database.query(models.Client)
+        .filter(models.Client.id == client_id)
+        .first()
+    )
+
+    if not existing_client:
+        raise HTTPException(
+            status_code=404,
+            detail="Client not found",
+        )
+
+    database.query(models.DietPlan).filter(
+        models.DietPlan.client_id == client_id
+    ).delete()
+
+    database.query(models.Workout).filter(
+        models.Workout.client_id == client_id
+    ).delete()
+
+    database.query(models.CheckIn).filter(
+        models.CheckIn.client_id == client_id
+    ).delete()
+
+    database.delete(existing_client)
+    database.commit()
+
+    return {
+        "message": "Client deleted successfully"
+    }
 
 
 @app.post("/clients/{client_id}/check-ins")

@@ -529,3 +529,104 @@ def test_reject_clients_without_auth():
     assert response.json() == {
         "detail": "Authentication required"
     }
+
+def test_update_client():
+    auth_headers = get_auth_headers()
+
+    create_response = client.post(
+        "/clients",
+        json={
+            "first_name": "Alex",
+            "last_name": "Rivera",
+            "email": "alex.update@test.com",
+            "goal": "Lose fat",
+        },
+        headers=auth_headers,
+    )
+
+    client_id = create_response.json()["id"]
+
+    update_response = client.patch(
+        f"/clients/{client_id}",
+        json={
+            "goal": "Build muscle",
+        },
+        headers=auth_headers,
+    )
+
+    assert update_response.status_code == 200
+
+    updated_client = update_response.json()
+
+    assert updated_client["goal"] == "Build muscle"
+    assert updated_client["email"] == "alex.update@test.com"
+
+
+def test_reject_update_for_missing_client():
+    auth_headers = get_auth_headers()
+
+    response = client.patch(
+        "/clients/999",
+        json={
+            "goal": "Build muscle",
+        },
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": "Client not found"
+    }
+
+
+def test_delete_client():
+    auth_headers = get_auth_headers()
+
+    create_response = client.post(
+        "/clients",
+        json={
+            "first_name": "Delete",
+            "last_name": "Test",
+            "email": "delete@test.com",
+            "goal": "Test deletion",
+        },
+        headers=auth_headers,
+    )
+
+    client_id = create_response.json()["id"]
+
+    delete_response = client.delete(
+        f"/clients/{client_id}",
+        headers=auth_headers,
+    )
+
+    assert delete_response.status_code == 200
+    assert delete_response.json() == {
+        "message": "Client deleted successfully"
+    }
+
+    database = SessionLocal()
+
+    deleted_client = (
+        database.query(models.Client)
+        .filter(models.Client.id == client_id)
+        .first()
+    )
+
+    database.close()
+
+    assert deleted_client is None
+
+
+def test_reject_delete_for_missing_client():
+    auth_headers = get_auth_headers()
+
+    response = client.delete(
+        "/clients/999",
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": "Client not found"
+    }
