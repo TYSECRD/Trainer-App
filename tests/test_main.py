@@ -1,3 +1,8 @@
+import os
+
+os.environ["DATABASE_URL"] = "sqlite:///./trainer_test.db"
+os.environ["TRAINER_APP_SECRET_KEY"] = "test-secret-key"
+
 import pytest
 from fastapi.testclient import TestClient
 

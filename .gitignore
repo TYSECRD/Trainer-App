@@ -4,3 +4,4 @@ __pycache__/
 .pytest_cache/
 trainer.db
 .env
+trainer_test.db

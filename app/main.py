@@ -220,11 +220,12 @@ def create_client(
         )
 
     new_client = models.Client(
-        first_name=client.first_name,
-        last_name=client.last_name,
-        email=client.email,
-        goal=client.goal,
-    )
+    trainer_id=_current_trainer.id,
+    first_name=client.first_name,
+    last_name=client.last_name,
+    email=client.email,
+    goal=client.goal,
+)
 
     database.add(new_client)
     database.commit()
@@ -240,7 +241,13 @@ def get_clients(
         get_current_trainer
     ),
 ):
-    return database.query(models.Client).all()
+    return (
+    database.query(models.Client)
+    .filter(
+        models.Client.trainer_id == _current_trainer.id
+    )
+    .all()
+)
 
 
 @app.patch("/clients/{client_id}")
@@ -254,7 +261,10 @@ def update_client(
 ):
     existing_client = (
         database.query(models.Client)
-        .filter(models.Client.id == client_id)
+        .filter(
+    models.Client.id == client_id,
+    models.Client.trainer_id == _current_trainer.id,
+)
         .first()
     )
 
@@ -303,7 +313,10 @@ def delete_client(
 ):
     existing_client = (
         database.query(models.Client)
-        .filter(models.Client.id == client_id)
+        .filter(
+    models.Client.id == client_id,
+    models.Client.trainer_id == _current_trainer.id,
+)
         .first()
     )
 
@@ -344,7 +357,10 @@ def create_check_in(
 ):
     existing_client = (
         database.query(models.Client)
-        .filter(models.Client.id == client_id)
+        .filter(
+            models.Client.id == client_id,
+            models.Client.trainer_id == _current_trainer.id,
+        )
         .first()
     )
 
@@ -380,7 +396,10 @@ def get_check_ins(
 ):
     existing_client = (
         database.query(models.Client)
-        .filter(models.Client.id == client_id)
+        .filter(
+            models.Client.id == client_id,
+            models.Client.trainer_id == _current_trainer.id,
+        )
         .first()
     )
 
@@ -409,7 +428,10 @@ def create_workout(
 ):
     existing_client = (
         database.query(models.Client)
-        .filter(models.Client.id == client_id)
+        .filter(
+            models.Client.id == client_id,
+            models.Client.trainer_id == _current_trainer.id,
+        )
         .first()
     )
 
@@ -445,7 +467,10 @@ def get_workouts(
 ):
     existing_client = (
         database.query(models.Client)
-        .filter(models.Client.id == client_id)
+        .filter(
+            models.Client.id == client_id,
+            models.Client.trainer_id == _current_trainer.id,
+        )
         .first()
     )
 
@@ -474,7 +499,10 @@ def create_diet_plan(
 ):
     existing_client = (
         database.query(models.Client)
-        .filter(models.Client.id == client_id)
+        .filter(
+            models.Client.id == client_id,
+            models.Client.trainer_id == _current_trainer.id,
+        )
         .first()
     )
 
@@ -511,7 +539,10 @@ def get_diet_plans(
 ):
     existing_client = (
         database.query(models.Client)
-        .filter(models.Client.id == client_id)
+        .filter(
+            models.Client.id == client_id,
+            models.Client.trainer_id == _current_trainer.id,
+        )
         .first()
     )
 
